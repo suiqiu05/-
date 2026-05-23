@@ -6,7 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
     // 这里改成你电脑的后端 IP 和端口
-    private const val BASE_URL = "http://192.168.198.1:8080/"
+    private const val BASE_URL = "http://10.0.2.2:8080/"
 
     val api: ApiService by lazy {
         Retrofit.Builder()

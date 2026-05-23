@@ -61,4 +61,7 @@ interface ApiService {
         @Query("userId") username: String,
         @Query("keyword") keyword: String
     ): Response<MailListResponse>
+
+    @GET("api/download")
+    suspend fun downloadFile(@Query("path") path: String): Response<okhttp3.ResponseBody>
 }

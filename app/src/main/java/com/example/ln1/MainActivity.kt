@@ -13,10 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -350,6 +352,10 @@ fun InboxScreen(
                                 }
                                 Text("主题：${mail.subject}", style = MaterialTheme.typography.titleMedium)
                                 Text("时间：${mail.createTime}", style = MaterialTheme.typography.bodySmall)
+                                val attachments = mail.attachments ?: emptyList()
+                                if (attachments.isNotEmpty()) {
+                                    Text("附件：${attachments.size} 个", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                }
                             }
                         }
                     }
@@ -409,9 +415,11 @@ fun MailDetailScreen(
 ) {
     var isDeleting by remember { mutableStateOf(false) }
     var tip by remember { mutableStateOf("") }
+    var downloadTip by remember { mutableStateOf("") }
 
     // 标记为已读
     var markedAsRead by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     
     LaunchedEffect(Unit) {
         println("MailDetailScreen launched, mail.id=${mail.id}, mail.isRead=${mail.isRead}, markedAsRead=$markedAsRead")
@@ -452,6 +460,70 @@ fun MailDetailScreen(
                 Spacer(Modifier.height(16.dp))
                 Text("内容：", style = MaterialTheme.typography.labelMedium)
                 Text(mail.content, style = MaterialTheme.typography.bodyLarge)
+                
+                val attachments = mail.attachments ?: emptyList()
+                if (attachments.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text("附件：", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        items(attachments) { attachment ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        downloadTip = "正在下载..."
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            try {
+                                                val response = RetrofitClient.api.downloadFile(attachment.filePath)
+                                                if (response.isSuccessful) {
+                                                    val body = response.body()?.bytes()
+                                                    if (body != null) {
+                                                        val file = File(context.getExternalFilesDir(null), attachment.fileName)
+                                                        FileOutputStream(file).use { it.write(body) }
+                                                        withContext(Dispatchers.Main) {
+                                                            downloadTip = "✅ 下载成功"
+                                                        }
+                                                    }
+                                                } else {
+                                                    withContext(Dispatchers.Main) {
+                                                        downloadTip = "❌ 下载失败"
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    downloadTip = "❌ 下载失败: ${e.message}"
+                                                }
+                                            }
+                                        }
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.AttachFile, contentDescription = "附件")
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(attachment.fileName, style = MaterialTheme.typography.bodyMedium)
+                                        Text("${attachment.fileSize} 字节", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Icon(Icons.Default.Download, contentDescription = "下载")
+                                }
+                            }
+                        }
+                    }
+                    if (downloadTip.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(downloadTip, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         }
 
